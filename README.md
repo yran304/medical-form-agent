@@ -1,79 +1,127 @@
-# Magical LLM Challenge
+# Medical Form AI Agent
 
-## Overview
+An LLM-driven browser automation agent. It uses Gemini (via the Vercel AI SDK) to drive
+Playwright through a real multi-section web form — reading the page, deciding what to do next,
+and calling tools to fill fields, open collapsed sections, select dropdown options, scroll, and
+submit — without any hardcoded per-field selectors.
 
-Welcome! We're excited to see you're interested in joining our team.
+The target form is a sample multi-section healthcare intake form
+(https://magical-medical-form.netlify.app/) with three sections: Personal Information, Medical
+Information, and Emergency Contact.
 
-Today, you'll be working on a scoped down version of our autonomous automation platform.
+## Features
 
-Below you will find all the necessary information to complete the task. If you have any questions, please reach out to your contact at Magical.
-
-### Task
-
-You are tasked with creating an AI agent that fills out web forms, create a working agentic loop
-that will fill out an example healthcare workflow.
-
-Here is the SOP (standard operating procedure) for the workflow:
-1. Navigate to https://magical-medical-form.netlify.app/
-2. Fill out the form with:
-   1. First Name: John
-   2. Last Name: Doe
-   3. Date of birth: 1990-01-01
-   4. Medical ID: 91927885
-3. Click 'Submit'
-
-### Bonus Points
-
-In this challenge there are a few bonus points, that'll help supercharge the agent.
-
-1. Complete the 2nd and 3rd sections of the form. You will need to:
-   1. Fill out dropdowns
-   2. Scroll to, and open the appropriate sections
-2. Add the ability to run the workflow via an API call
-3. Add the ability to pass in variables for the prompt
-   1. Think a dynamic "First Name" and "Last Name," you can hardcode an example
-4. Make it so that this workflow can be run automatically on a schedule, every 5 minutes in this
-   case.
-5. Think of something else our agent needs and implement it!
-
-### What's provided
-
-We've provided you with a basic setup that will set you up for success. You're given:
-
-1. An initiated playwright session
-2. A model setup, with access to the Vercel AI SDK (what we use)
-   1. NOTE: You will need to provide your own Gemini API key via the `GOOGLE_GENERATIVE_AI_API_KEY` environment variable.
-   2. You can get a free API key from the [Google AI Studio](https://aistudio.google.com/apikey) or we provided a link to one in the email.
+- **Agentic loop**: the model inspects the page, decides the next action, and calls one of five
+  browser tools (`inspectPage`, `fillField`, `clickButton`, `selectOption`, `scrollPage`) until
+  the form is submitted and the result is verified.
+- **Handles dynamic UI**: opens collapsed sections, fills text/date fields, and selects dropdown
+  values based on what the model actually observes on the page.
+- **Runs three ways**: as a one-off script, behind a local HTTP API, or on a recurring schedule.
+- **Dynamic input**: first and last name can be overridden per run via the API; all other patient
+  fields default to the values in `src/workflow.ts`.
 
 ## Setup
 
-### System Requirements
+### Requirements
 
 - Node.js 20+
 
+### Install
 
-### Setup
-
-Clone the repository
-
-Install dependencies
 ```bash
 npm install
-```
-
-Install playwright
-```bash
 npx playwright install
 ```
 
-Create a `.env` file and add your Gemini API key
+### Configure
+
+Create a `.env` file with your Gemini API key (get one from
+[Google AI Studio](https://aistudio.google.com/apikey)):
+
+```bash
+cp .env.example .env
+```
 
 ```bash
 GOOGLE_GENERATIVE_AI_API_KEY=your_google_key
 ```
 
-### Running the script
+### Typecheck
+
+```bash
+npm run typecheck
+```
+
+## Running it
+
+### As a script
 
 ```bash
 npm run dev
 ```
+
+Opens Chromium, completes all three sections of the medical form using the default patient data,
+submits it, prints the agent's result, and closes the browser.
+
+### As an API
+
+```bash
+npm run api
+```
+
+The server listens at `http://localhost:3001`.
+
+```bash
+curl http://localhost:3001/health
+```
+
+```bash
+curl -X POST http://localhost:3001/run
+```
+
+With dynamic first/last name:
+
+```bash
+curl -X POST http://localhost:3001/run \
+  -H "Content-Type: application/json" \
+  -d '{"firstName":"Alice","lastName":"Smith"}'
+```
+
+Only `firstName` and `lastName` are overridden by the request; the rest of the patient data comes
+from the defaults in `src/workflow.ts`.
+
+### On a schedule
+
+```bash
+npm run schedule
+```
+
+Runs the workflow immediately, then every five minutes. Keep the process running; `Ctrl+C` to
+stop it.
+
+## How it works
+
+- `src/session.ts` launches a visible Chromium instance and navigates to the target form.
+- `src/workflow.ts` defines the patient data shape, default values, and the prompt describing the
+  SOP the agent should follow.
+- `src/browser-tools.ts` exposes the five tools the model can call, each bound to the current
+  Playwright `Page`.
+- `src/main.ts` wires it together: starts the session, lazily loads the AI SDK and tools, and
+  drives the loop with `generateText` (capped at 20 tool calls).
+- `src/server.ts` and `src/scheduler.ts` wrap `runWorkflow` for the API and scheduled entry
+  points, each with simple in-process concurrency guards against overlapping runs.
+
+## Notes and troubleshooting
+
+- Never commit the `.env` file — it holds a real API key.
+- The first run is slower while Node loads Playwright and the AI SDK; later API or scheduled runs
+  reuse the already-running process.
+- If port `3001` is in use, stop whatever is holding it or change `port` in `src/server.ts` (and
+  update the `curl` examples to match):
+
+  ```bash
+  lsof -nP -iTCP:3001 -sTCP:LISTEN
+  ```
+
+- The agent is capped at 20 tool calls (`stepCountIs(20)` in `src/main.ts`). That's enough for
+  this form; raise it only if a larger form genuinely needs more steps.

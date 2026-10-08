@@ -3,21 +3,26 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node ./src/_internal/run.ts"
+    "dev": "tsx ./src/_internal/run.ts",
+    "api": "tsx ./src/server.ts",
+    "schedule": "tsx ./src/scheduler.ts",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["ai-agent", "playwright", "browser-automation", "gemini"],
+  "author": "Yi Ran",
   "license": "ISC",
-  "description": "",
+  "description": "LLM-driven browser agent that fills out a multi-section web form using Playwright and the Vercel AI SDK.",
   "devDependencies": {
     "@types/node": "^22.14.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.1",
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@ai-sdk/google": "^1.2.19",
-    "ai": "^4.3.2",
+    "@ai-sdk/google": "^4.0.24",
+    "ai": "^7.0.37",
     "dotenv-defaults": "^5.0.2",
-    "playwright": "^1.51.1"
+    "playwright": "^1.51.1",
+    "zod": "^4.4.3"
   }
 }
